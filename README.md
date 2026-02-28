@@ -1,8 +1,8 @@
 Hi,
 
-Just to give back to the wonderfull ESPHome community, I share my Waveshare 3.7" display driver. Below AI generated desciption to explain a bit more. 
+To give back to the wonderful ESPHome community, I’m sharing my Waveshare 3.7" display driver. The description below was AI-generated and then edited for clarity.
 
-My first ever upload to Github, so if something is not right, please be easy on me :)
+My first ever upload to GitHub, so if something is not right, please be easy on me :)
 
 Enjoy!
 
@@ -83,6 +83,28 @@ time:
 
 This pattern is useful for e-paper to reduce unnecessary refreshes.
 
+## Security defaults (recommended)
+
+For local-only labs, default ESPHome API/OTA settings may be acceptable. For normal home networks, use encrypted API and OTA authentication.
+
+Example:
+
+```yaml
+api:
+	encryption:
+		key: !secret api_encryption_key
+
+ota:
+	platform: esphome
+	password: !secret ota_password
+```
+
+In your `secrets.yaml`, define:
+
+```yaml
+api_encryption_key: "<32-byte-base64-key>"
+ota_password: "<strong-password>"
+```
 ## Notes about the included thermostat YAML
 
 - Depends on Home Assistant entities that you will need to rename.

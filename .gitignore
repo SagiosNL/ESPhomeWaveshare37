@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+
+# ESPHome local build/output
+.esphome/
+
+# Local secrets
+secrets.yaml
+
+# Editor/OS noise
+.DS_Store

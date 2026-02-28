@@ -1,0 +1,200 @@
+esphome:
+  name: waveshare37
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [waveshare37_epaper]
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+api:
+  encryption:
+    key: !secret api_encryption_key
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+time:
+  - platform: homeassistant
+    id: ha_time
+    timezone: "Europe/Brussels"
+    on_time:
+      # Update display exactly on every minute
+      - seconds: 0
+        then:
+          - component.update: epaper
+      # Full refresh 3x at midnight
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        then:
+          - repeat:
+              count: 3
+              then:
+                - component.update: epaper
+                - delay: 5s
+
+globals:
+  - id: force_full_refresh
+    type: bool
+    initial_value: 'false'
+
+font:
+  - file: "fonts/segoeui.ttf"
+    id: font_small
+    size: 18
+  - file: "fonts/segoeui.ttf"
+    id: font_medium
+    size: 26
+  - file: "fonts/segoeui.ttf"
+    id: font_outside_whole
+    size: 29
+  - file: "fonts/seguisb.ttf"
+    id: font_outside_decimal
+    size: 20          # semibold decimal for outside temp
+  - file: "fonts/segoeui.ttf"
+    id: font_large
+    size: 40
+  - file: "fonts/seguisb.ttf"
+    id: font_large_bold
+    size: 40          # semibold decimal for inside/target
+  - file: "fonts/segoeui.ttf"
+    id: font_xlarge
+    size: 75          # 60 + 25%
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icons_large
+    size: 80
+    glyphs:
+      - "\U000F0599"  # weather-sunny
+      - "\U000F0590"  # weather-cloudy
+      - "\U000F0596"  # weather-partly-cloudy
+      - "\U000F0597"  # weather-rainy
+      - "\U000F0598"  # weather-snowy
+      - "\U000F067E"  # weather-lightning
+      - "\U000F0F30"  # weather-fog
+      - "\U000F0594"  # weather-night
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icons_medium
+    size: 32
+    glyphs:
+      - "\U000F050F"  # thermometer (outside)
+      - "\U000F0F55"  # home-thermometer (inside)
+      - "\U000F04FE"  # target (target temp)
+
+sensor:
+  - platform: homeassistant
+    id: outside_temperature
+    entity_id: weather.knmi_home
+    attribute: temperature
+
+  - platform: homeassistant
+    id: inside_temperature
+    entity_id: climate.diyless_thermostat_1_central_heating
+    attribute: current_temperature
+
+  - platform: homeassistant
+    id: target_temperature
+    entity_id: climate.diyless_thermostat_1_central_heating
+    attribute: temperature
+
+text_sensor:
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: weather.knmi_home
+
+display:
+  - platform: waveshare37_epaper
+    id: epaper
+    clk_pin: 18
+    mosi_pin: 23
+    cs_pin: 5
+    dc_pin: 17
+    reset_pin: 16
+    busy_pin: 4
+    update_interval: never    # disable automatic updates, driven by on_time instead
+    rotation: 90°
+    full_update_every: 0
+    lambda: |-
+      int W = it.get_width();   // 480
+      int H = it.get_height();  // 280
+      char buf[32];
+
+      // ── TOP: Time + date (left) ────────────────────────────
+      it.strftime(17, -8, id(font_xlarge), "%H:%M", id(ha_time).now());
+      it.strftime(17, 75, id(font_medium), "%A  %d %B", id(ha_time).now());
+
+      // ── TOP: Weather icon (center) ─────────────────────────
+      std::string condition = id(weather_condition).state;
+      std::string icon = "\U000F0590";
+      if (condition == "sunny")                                    icon = "\U000F0599";
+      else if (condition == "clear-night")                         icon = "\U000F0594";
+      else if (condition == "partlycloudy")                        icon = "\U000F0596";
+      else if (condition == "rainy" || condition == "pouring")     icon = "\U000F0597";
+      else if (condition == "snowy" || condition == "snowy-rainy") icon = "\U000F0598";
+      else if (condition == "lightning-rainy")                     icon = "\U000F067E";
+      else if (condition == "fog" || condition == "windy")         icon = "\U000F0F30";
+      it.print(310, -5, id(font_icons_large), icon.c_str());
+
+      // ── TOP: Outside temp (right) aligned with date ────────
+      it.print(317, 75, id(font_icons_medium), "\U000F050F");
+      if (!isnan(id(outside_temperature).state)) {
+        int whole = (int)id(outside_temperature).state;
+        int decimal = abs((int)(id(outside_temperature).state * 10) % 10);
+        int x = 357;
+        sprintf(buf, "%d", whole);
+        it.print(x, 75, id(font_outside_whole), buf);
+        x += (whole >= 10 ? 34 : 19);
+        sprintf(buf, "%d", decimal);
+        it.print(x, 85, id(font_outside_decimal), buf);  // bold
+        x += 13;
+        it.print(x, 75, id(font_outside_whole), "°");
+      } else {
+        it.print(357, 75, id(font_outside_whole), "--°");
+      }
+
+      // ── BOTTOM: Inside temp (far left) ────────────────────
+      it.print(17, 145, id(font_icons_medium), "\U000F0F55");
+      it.print(57, 145, id(font_medium), "Inside");
+      if (!isnan(id(inside_temperature).state)) {
+        int whole = (int)id(inside_temperature).state;
+        int decimal = abs((int)(id(inside_temperature).state * 10) % 10);
+        int x = 17;
+        sprintf(buf, "%d", whole);
+        it.print(x, 165, id(font_xlarge), buf);
+        x += (whole >= 10 ? 85 : 45);
+        sprintf(buf, "%d", decimal);
+        it.print(x, 200, id(font_large_bold), buf);  // bold
+        x += 22;
+        it.print(x, 165, id(font_xlarge), "°");
+      } else {
+        it.print(17, 165, id(font_xlarge), "--°");
+      }
+
+      // ── BOTTOM: Target temp (far right) ───────────────────
+      it.print(310, 145, id(font_icons_medium), "\U000F04FE");
+      it.print(350, 145, id(font_medium), "Target");
+      if (!isnan(id(target_temperature).state)) {
+        int whole = (int)id(target_temperature).state;
+        int decimal = abs((int)(id(target_temperature).state * 10) % 10);
+        int x = 310;
+        sprintf(buf, "%d", whole);
+        it.print(x, 165, id(font_xlarge), buf);
+        x += (whole >= 10 ? 85 : 45);
+        sprintf(buf, "%d", decimal);
+        it.print(x, 200, id(font_large_bold), buf);  // bold
+        x += 22;
+        it.print(x, 165, id(font_xlarge), "°");
+      } else {
+        it.print(310, 165, id(font_xlarge), "--°");
+      }
+
