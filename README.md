@@ -2,6 +2,8 @@ Hi,
 
 Just to give back to the wonderfull ESPHome community, I share my Waveshare 3.7" display driver. Below AI generated desciption to explain a bit more. 
 
+My first ever upload to Github, so if something is not right, please be easy on me :)
+
 Enjoy!
 
 Sagios
